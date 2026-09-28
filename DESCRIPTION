@@ -1,0 +1,37 @@
+Package: flexloa
+Type: Package
+Title: Magnitude-Dependent Limits of Agreement via Variance-Stabilising
+    Transformations
+Version: 0.1.0
+Authors@R: c(
+    person("Jeong-Hwa", "Yoon", role = c("aut", "cre"),
+           email = "yjh891114@snu.ac.kr"),
+    person("Soon Ho", "Yoon", role = "aut"),
+    person("Seokyung", "Hahn", role = "aut"))
+Description: Conventional Bland-Altman limits of agreement (LOA) extended
+    to measurement error that grows with the magnitude of the measurement.
+    For each candidate variance-stabilising transformation (identity,
+    square root, cube root, general n-th root, log) the package
+    computes the conventional limits on the transformed scale,
+    back-transforms them to curved LOA bands on the original scale,
+    and reports the classical Bland-Altman diagnostics (normality of the
+    transformed differences, the rank-correlation test of
+    heteroscedasticity, the regression test of proportional bias, and
+    empirical coverage) in a decision table, so that the transformation
+    can be chosen on explicit grounds rather than by eye. General reader
+    studies are converted to intra- and inter-reader difference pairs,
+    and variance components for replicated multi-reader designs (intra-
+    and inter-reader error) are estimated by REML or expected mean
+    squares, following the modelling framework of Yoon, Yoon and Hahn
+    (2019) <doi:10.1186/s12874-019-0727-7> and the transformation approach
+    of Euser, Dekker and le Cessie (2008) <doi:10.1016/j.jclinepi.2007.11.003>.
+License: MIT + file LICENSE
+Encoding: UTF-8
+URL: https://github.com/yjh891114/flexloa
+BugReports: https://github.com/yjh891114/flexloa/issues
+Depends: R (>= 3.5.0)
+Imports: stats, graphics, utils
+Suggests: lme4, testthat (>= 3.0.0)
+Config/testthat/edition: 3
+Config/roxygen2/version: 8.1.0
+RoxygenNote: 7.3.1

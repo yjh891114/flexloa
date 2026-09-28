@@ -1,0 +1,7 @@
+^\.git$
+^\.github$
+^\.gitignore$
+^README\.md$
+^NEWS\.md$
+^.*\.Rproj$
+^\.Rproj\.user$
