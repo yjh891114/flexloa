@@ -1,0 +1,227 @@
+---
+title: "Why magnitude-dependent limits of agreement? A CT reader-study walkthrough"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Why magnitude-dependent limits of agreement? A CT reader-study walkthrough}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>", fig.width = 7, fig.height = 4.5, dpi = 96)
+```
+
+This vignette works through one dataset from start to finish. The aim is
+not only to show which functions to call, but to show *why* limits of
+agreement that follow the magnitude of the measurement are needed, using a
+setting where the consequence of getting them wrong is concrete: the RECIST
+assessment of tumor response.
+
+## 1. The data
+
+`recist_readings` is a synthetic dataset that reproduces the design of a
+published multi-reader CT study (Yoon, Yoon and Hahn, 2019): 249 target
+lesions, each read by six radiologists in two replicate sessions, with the
+longest diameter recorded in whole millimetres. The data are simulated, so
+that they can be shipped with the package, but their error structure is
+the one observed in that study: measurement error grows with lesion size,
+more slowly than in proportion.
+
+```{r data}
+library(flexloa)
+data(recist_readings)
+head(recist_readings)
+summary(recist_readings$diameter)
+```
+
+In routine practice a lesion is read once by one radiologist at baseline
+and once, often by a different radiologist, at follow-up. The relevant
+question is therefore: *how much can a single reading change when the
+reader changes?* `loa_pairs()` forms the corresponding pairs, one reading
+by one reader against one reading by another reader of the same lesion in
+the same session (`replicates = "matched"`, the default).
+
+```{r pairs}
+p_inter <- loa_pairs(recist_readings$diameter, recist_readings$lesion,
+                     recist_readings$reader, recist_readings$session,
+                     type = "inter")
+p_inter
+```
+
+## 2. The problem: conventional limits on these data
+
+Start where everyone starts, with the conventional Bland-Altman analysis on
+the original scale.
+
+```{r constant}
+f_id <- loa_fit(p_inter, transform = "identity")
+f_id
+```
+
+The limits are about ±8 mm for every lesion. Now look at the plot.
+
+```{r constant-plot, fig.cap = "Conventional (constant) limits on the inter-reader pairs."}
+plot(f_id, xlab = "Mean of two readers (mm)", ylab = "Difference between readers (mm)")
+```
+
+The differences fan out: among lesions of 10-20 mm the readers rarely
+disagree by more than 4 mm, whereas among lesions of 80-100 mm they
+disagree by 15 mm and more. The two horizontal lines are too wide on the
+left and too narrow on the right. The decision table says the same thing
+in numbers. The overall coverage looks fine (`coverage` ≈ 0.95), because a
+band that is too wide at one end and too narrow at the other cancels the
+two errors in the total. The coverage by thirds of the range exposes it:
+
+```{r constant-cov}
+f_id$gof[c("hetero_rho", "hetero_p", "coverage", "cov_low", "cov_mid", "cov_high")]
+```
+
+Nearly every difference among small lesions is inside the limits and
+roughly one in eight among large lesions is outside.
+
+### Why this matters
+
+Limits of agreement are used to decide whether an observed difference is
+more than measurement error. Under RECIST, progression is declared when
+the diameter increases by 20% or more. Consider three lesions re-read by
+another radiologist:
+
+```{r cases-const}
+cases <- data.frame(baseline = c(12, 30, 100), followup = c(20, 37, 114))
+cases$change_mm  <- cases$followup - cases$baseline
+cases$change_pct <- round(100 * cases$change_mm / cases$baseline)
+m_case <- (cases$baseline + cases$followup) / 2
+cases$const_limit <- round(loa_band(f_id, mean = m_case)$upper, 1)
+cases$verdict_constant <- ifelse(cases$change_mm > cases$const_limit, "real change", "within error")
+cases
+```
+
+With constant limits, lesion A (12 mm read as 20 mm, a 67% increase and
+therefore progression by RECIST) is dismissed as reader disagreement,
+while lesion C (100 mm read as 114 mm, a 14% increase, below the
+progression threshold) is called a real change. Both verdicts are wrong,
+and they are wrong in opposite directions.
+
+## 3. The remedy: choose the scale on evidence
+
+`loa_compare()` fits the conventional limits on each candidate scale,
+back-transforms them to the original scale, and tabulates the classical
+diagnostics for every candidate.
+
+```{r compare}
+cmp <- loa_compare(p_inter)
+cmp$gof
+```
+
+Candidates are ordered by the heteroscedasticity correlation `hetero_rho`,
+the Bland-Altman check of whether the scatter of the differences depends
+on the mean. On the identity scale it is strongly positive; on the
+logarithmic scale it is strongly negative (the log over-corrects); on the
+square-root scale it is close to zero, and the coverage by thirds is even.
+The overlay plot shows all four bands on the same scatter:
+
+```{r overlay, fig.cap = "Back-transformed 95% limits of the four candidate transformations."}
+plot(cmp, xlab = "Mean of two readers (mm)", ylab = "Difference between readers (mm)")
+```
+
+The square-root band follows the fan-shaped spread of the differences.
+It is the scale on which the conventional Bland-Altman model holds, so
+the conventional limits computed there, and mapped back, are the ones to
+use.
+
+## 4. Definitive limits from the variance components
+
+The pairs above are exploratory: pairs formed from the same lesion are
+correlated. The definitive estimates come from the hierarchical model
+fitted on the chosen scale by `loa_components()`, which separates reader,
+lesion-by-reader and residual variance and reports intra- and inter-reader
+limits. As in the original study, 5% of observations with the largest
+standardized residuals are trimmed.
+
+```{r components}
+vc <- loa_components(recist_readings$diameter, recist_readings$lesion,
+                     recist_readings$reader, transform = "sqrt", trim = 0.05)
+vc
+```
+
+`loa_band()` evaluates the curved limits at any lesion sizes of interest:
+
+```{r bands}
+sizes <- c(10, 20, 30, 60, 100, 150)
+data.frame(size_mm = sizes,
+           intra_95 = round(loa_band(vc$intra, mean = sizes)$upper, 1),
+           inter_95 = round(loa_band(vc$inter, mean = sizes)$upper, 1),
+           constant_inter = round(loa_band(f_id, mean = sizes)$upper, 1))
+```
+
+A second reader may plausibly differ by about 4-5 mm on a 10-mm lesion
+and by about 14-15 mm on a 100-mm lesion. The constant limit of 8 mm
+overstates the error at the small end and understates it at the large
+end.
+
+## 5. What changes in the decisions
+
+Re-assess the three lesions with the curved inter-reader limits:
+
+```{r cases-curved}
+cases$curved_limit <- round(loa_band(vc$inter, mean = m_case)$upper, 1)
+cases$verdict_curved <- ifelse(cases$change_mm > cases$curved_limit, "real change", "within error")
+cases$RECIST <- ifelse(cases$change_pct >= 20, "PD (>= 20%)", "SD (< 20%)")
+cases[, c("baseline", "followup", "change_mm", "change_pct", "RECIST",
+          "const_limit", "verdict_constant", "curved_limit", "verdict_curved")]
+```
+
+Lesion A is now recognized as a real change and lesion C as reader
+disagreement. Lesion B, near the size where the curved band crosses the
+constant limit, is judged the same way by both.
+
+The same comparison over the whole size range shows where a 20% increase
+can be produced by reader disagreement alone:
+
+```{r decision-plot, fig.cap = "Minimum change distinguishable from inter-reader error, constant versus curved limits, against the RECIST progression threshold."}
+grid <- seq(8, 160, by = 1)
+curved <- loa_band(vc$inter, mean = grid)$upper
+const  <- loa_band(f_id, mean = grid)$upper
+plot(grid, curved, type = "l", lwd = 2, col = "firebrick", ylim = c(0, 40),
+     xlab = "Baseline lesion diameter (mm)", ylab = "Increase at re-reading (mm)")
+lines(grid, const, lwd = 2, lty = 3, col = "grey30")
+lines(grid, 0.2 * grid, lwd = 2, lty = 2, col = "steelblue")
+points(cases$baseline, cases$change_mm, pch = 21, bg = "gold", cex = 1.3)
+text(cases$baseline, cases$change_mm, c("A", "B", "C"), pos = 3, font = 2)
+legend("topleft", bty = "n", lwd = 2, lty = c(1, 3, 2),
+       col = c("firebrick", "grey30", "steelblue"),
+       legend = c("Inter-reader 95% LOA, square-root band",
+                  "Inter-reader 95% LOA, constant",
+                  "RECIST progression threshold (+20%)"))
+range(grid[0.2 * grid <= const]);  range(grid[0.2 * grid <= curved])
+```
+
+Under constant limits a 20% increase is within reader error for lesions up
+to about 40 mm; under the curved limits, up to about 50 mm. The two bands
+also give different answers to the interchangeability question. If the
+acceptable difference between readers is set at 15% of the measurement,
+the curved band lies within that tolerance only for lesions above about
+90 mm, whereas the constant limit would certify interchangeability from
+about 55 mm upwards, over a range where the true error exceeds the
+tolerance.
+
+```{r tolerance}
+tol <- 0.15 * grid
+c(curved_ok_from = min(grid[curved <= tol]), constant_ok_from = min(grid[const <= tol]))
+```
+
+## 6. Summary
+
+On data of this kind the conventional limits are not wrong on average,
+they are wrong at every particular size, and the decisions built on them
+inherit the error. The workflow in **flexloa** replaces the visual choice
+of a transformation by a decision table, keeps the conventional
+Bland-Altman calculation intact on the chosen scale, and returns the
+limits on the original scale where the clinical comparison is made.
+
+```{r summary-workflow, eval = FALSE}
+p   <- loa_pairs(diameter, lesion, reader, session, type = "inter")
+cmp <- loa_compare(p)                 # decision table + overlay plot
+vc  <- loa_components(diameter, lesion, reader, transform = cmp$best)
+loa_band(vc$inter, mean = c(10, 30, 100))
+```
