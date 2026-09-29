@@ -2,7 +2,7 @@
 % Please edit documentation in R/transforms.R
 \name{loa_transform}
 \alias{loa_transform}
-\title{Transformation specifications for limits-of-agreement modelling}
+\title{Transformation specifications for limits-of-agreement modeling}
 \usage{
 loa_transform(
   transform = c("identity", "sqrt", "cbrt", "log", "root"),

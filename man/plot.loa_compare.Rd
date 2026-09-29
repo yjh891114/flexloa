@@ -19,7 +19,7 @@
 
 \item{grid_n}{Number of grid points for the bands.}
 
-\item{cols, ltys}{Optional colours / line types per transformation.}
+\item{cols, ltys}{Optional colors / line types per transformation.}
 
 \item{xlab, ylab}{Axis labels.}
 

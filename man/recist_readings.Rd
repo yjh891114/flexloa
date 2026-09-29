@@ -25,13 +25,13 @@ recist_readings
 A synthetic dataset that reproduces the design of the multi-reader CT
 study of Yoon, Yoon and Hahn (2019): 249 target lesions, each measured
 by six readers in two replicate sessions at baseline (2,988 readings of
-the longest diameter, in whole millimetres). The data were generated
+the longest diameter, in whole millimeters). The data were generated
 from a hierarchical model with lesion, reader, lesion-by-reader and
 residual random effects on the square-root scale, so that measurement
 error grows with lesion size but more slowly than in proportion, the
 pattern observed in that study. The values are simulated, not the
 original measurements; they are intended for illustrating and
-practising the workflow (see \code{vignette("recist-example")}).
+practicing the workflow (see \code{vignette("recist-example")}).
 }
 \examples{
 data(recist_readings)
