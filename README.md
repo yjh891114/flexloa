@@ -17,6 +17,17 @@ between them**:
 | Proportional-bias slope, p (regression of d on mean) | Whether bias changes with the measurement scale |
 | Empirical coverage, overall and by thirds of the pair means | % of observed differences inside the back-transformed band (target ≈ level). Overall coverage is ≈ level for any transformation fitted to the same data; the coverage in the lower / middle / upper third of the measurement range shows whether the band is too wide at one end and too narrow at the other |
 
+## Worked example
+
+The package ships a synthetic multi-reader CT dataset, `recist_readings`, and a
+vignette that walks through it from the conventional (constant) limits to the
+magnitude-dependent limits, and shows where the two lead to different clinical
+decisions:
+
+```r
+vignette("recist-example", package = "flexloa")
+```
+
 ## Installation
 
 ```r

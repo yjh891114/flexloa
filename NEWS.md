@@ -14,5 +14,10 @@
 * `loa_components()`: variance components (REML via lme4, or expected mean
   squares) with intra-reader, inter-reader and session-averaged inter-reader
   limits, optional residual trimming and residual diagnostics.
+* `recist_readings`: a synthetic multi-reader CT dataset (249 lesions, 6
+  readers, 2 sessions) reproducing the design of Yoon, Yoon & Hahn (2019),
+  with the vignette `recist-example` walking through the full workflow and
+  showing where constant and magnitude-dependent limits lead to different
+  decisions.
 * `simulate_agreement()`: simulated paired data with error homoscedastic on a
   chosen transformed scale.
