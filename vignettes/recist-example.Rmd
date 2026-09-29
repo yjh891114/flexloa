@@ -22,10 +22,10 @@ assessment of tumor response.
 `recist_readings` is a synthetic dataset that reproduces the design of a
 published multi-reader CT study (Yoon, Yoon and Hahn, 2019): 249 target
 lesions, each read by six radiologists in two replicate sessions, with the
-longest diameter recorded in whole millimetres. The data are simulated, so
-that they can be shipped with the package, but their error structure is
-the one observed in that study: measurement error grows with lesion size,
-more slowly than in proportion.
+longest diameter recorded in whole millimeters. The data are simulated, so
+that they can be shipped with the package; they were generated so that the
+error follows the pattern observed in that study: measurement error grows
+with lesion size, more slowly than in proportion.
 
 ```{r data}
 library(flexloa)
