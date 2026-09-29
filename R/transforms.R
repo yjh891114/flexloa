@@ -1,4 +1,4 @@
-#' Transformation specifications for limits-of-agreement modelling
+#' Transformation specifications for limits-of-agreement modeling
 #'
 #' Builds the transformation object used throughout \pkg{flexloa}. Each
 #' specification carries the forward transformation \code{f}, its inverse

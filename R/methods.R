@@ -101,7 +101,7 @@ plot.loa_fit <- function(x, grid_n = 200,
 #'
 #' @param x A \code{loa_compare} object.
 #' @param grid_n Number of grid points for the bands.
-#' @param cols,ltys Optional colours / line types per transformation.
+#' @param cols,ltys Optional colors / line types per transformation.
 #' @param xlab,ylab Axis labels.
 #' @param ... Passed to \code{plot}.
 #' @export
