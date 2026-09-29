@@ -1,0 +1,30 @@
+#' Synthetic CT reader study of tumor lesion diameters
+#'
+#' A synthetic dataset that reproduces the design of the multi-reader CT
+#' study of Yoon, Yoon and Hahn (2019): 249 target lesions, each measured
+#' by six readers in two replicate sessions at baseline (2,988 readings of
+#' the longest diameter, in whole millimetres). The data were generated
+#' from a hierarchical model with lesion, reader, lesion-by-reader and
+#' residual random effects on the square-root scale, so that measurement
+#' error grows with lesion size but more slowly than in proportion, the
+#' pattern observed in that study. The values are simulated, not the
+#' original measurements; they are intended for illustrating and
+#' practising the workflow (see \code{vignette("recist-example")}).
+#'
+#' @format A data frame with 2,988 rows and 4 variables:
+#' \describe{
+#'   \item{lesion}{integer, lesion identifier (1-249)}
+#'   \item{reader}{factor, reader identifier (R1-R6)}
+#'   \item{session}{integer, replicate session (1 or 2)}
+#'   \item{diameter}{numeric, longest diameter in mm, recorded to the nearest mm}
+#' }
+#' @source Simulated with the script in \code{data-raw/make_recist_readings.R}
+#'   (seed 2019); design after Yoon JH, Yoon SH, Hahn S. BMC Med Res Methodol.
+#'   2019;19:90. \doi{10.1186/s12874-019-0727-7}
+#' @examples
+#' data(recist_readings)
+#' head(recist_readings)
+#' p <- loa_pairs(recist_readings$diameter, recist_readings$lesion,
+#'                recist_readings$reader, recist_readings$session, type = "inter")
+#' loa_compare(p)$gof
+"recist_readings"

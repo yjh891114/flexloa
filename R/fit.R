@@ -82,8 +82,15 @@ loa_fit <- function(x, y = NULL, transform = "sqrt", level = 0.95,
   means <- (x + y) / 2
 
   ## (i) normality of the transformed differences
-  sw_p <- if (N >= 3 && N <= 5000)
-    stats::shapiro.test(d)$p.value else NA_real_
+  ## shapiro.test() accepts at most 5000 values; use a fixed random
+  ## subsample beyond that so that the test remains reproducible
+  sw_p <- if (N >= 3) {
+    dd <- if (N > 5000) {
+      idx <- withr_free_sample(N, 5000)
+      d[idx]
+    } else d
+    stats::shapiro.test(dd)$p.value
+  } else NA_real_
 
   ## (ii) heteroscedasticity: Spearman correlation between |d - bias|
   ##      and the pair means (Bland & Altman 1999)
@@ -188,4 +195,13 @@ loa_compare <- function(x, y = NULL,
   br <- stats::quantile(means, c(1/3, 2/3), names = FALSE, type = 7)
   g <- 1L + (means > br[1L]) + (means > br[2L])
   as.integer(g)
+}
+
+## deterministic subsample of `k` indices out of `n` (does not touch the
+## user's RNG stream)
+withr_free_sample <- function(n, k) {
+  old <- if (exists(".Random.seed", envir = globalenv())) get(".Random.seed", envir = globalenv()) else NULL
+  on.exit(if (is.null(old)) rm(".Random.seed", envir = globalenv()) else assign(".Random.seed", old, envir = globalenv()))
+  set.seed(20190502)
+  sample.int(n, k)
 }
