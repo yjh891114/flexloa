@@ -22,7 +22,7 @@ Description: Conventional Bland-Altman limits of agreement (LOA) extended
     studies are converted to intra- and inter-reader difference pairs,
     and variance components for replicated multi-reader designs (intra-
     and inter-reader error) are estimated by REML or expected mean
-    squares, following the modelling framework of Yoon, Yoon and Hahn
+    squares, following the modeling framework of Yoon, Yoon and Hahn
     (2019) <doi:10.1186/s12874-019-0727-7> and the transformation approach
     of Euser, Dekker and le Cessie (2008) <doi:10.1016/j.jclinepi.2007.11.003>.
 License: MIT + file LICENSE
