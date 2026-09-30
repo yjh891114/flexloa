@@ -159,6 +159,55 @@ and by about 14-15 mm on a 100-mm lesion. The constant limit of 8 mm
 overstates the error at the small end and understates it at the large
 end.
 
+### How precise are the limits?
+
+The limits are estimates. For independent pairs `loa_fit()` reports the
+approximate confidence intervals of Bland and Altman (standard error of a
+limit about 1.71 s/sqrt(n), t distribution), in `f$ci_t`. The inter-reader
+pairs above share lesions, so that approximation overstates the precision;
+`nboot > 0` replaces it by a cluster bootstrap that resamples lesions.
+Compare the two for the constant limits:
+
+```{r ci-pairs}
+f_id$ci_t                                   # Bland-Altman approximation
+f_idb <- loa_fit(p_inter, transform = "identity", nboot = 200, seed = 1)
+f_idb$ci_t                                  # cluster bootstrap (lesions)
+```
+
+The bootstrap interval is about three times wider: 7470 correlated pairs
+carry the information of about 249 lesions, not of 7470 independent pairs.
+For the definitive model, `loa_components(nboot = )` resamples lesions and
+refits the model on each resample (a few hundred resamples take minutes;
+we use 100 here to keep the vignette quick, 500 in the paper). The
+interval end points are back-transformed by `loa_band(ci = TRUE)`, which
+gives a pointwise confidence band around each curved limit, and
+`plot(ci = TRUE)` shades it:
+
+```{r components-boot, cache = FALSE}
+vcb <- loa_components(recist_readings$diameter, recist_readings$lesion,
+                      recist_readings$reader, transform = "sqrt",
+                      trim = 0.05, nboot = 100, seed = 1)
+vcb$varcomp_ci
+round(loa_band(vcb$inter, mean = c(10, 30, 100), ci = TRUE), 2)
+```
+
+```{r ci-plot, fig.cap = "Square-root limits of the inter-reader pairs with pointwise 95% confidence bands (cluster bootstrap)."}
+f_sqb <- loa_fit(p_inter, transform = "sqrt", nboot = 200, seed = 1)
+plot(f_sqb, ci = TRUE, xlab = "Mean of two readers (mm)",
+     ylab = "Difference between readers (mm)")
+```
+
+What the interval adds is a statement of how sure the data allow us to be.
+The inter-reader limit at 100 mm is about 14.4 mm with a 95% band of
+roughly 13.8 to 14.9 mm: if the clinically acceptable difference at that
+size is 15 mm, the whole band lies inside it and interchangeability is
+supported by the data rather than by the point estimate alone; if the
+acceptable difference is 14 mm, the point estimate exceeds it and the band
+confirms that the excess is real. One caveat: the bootstrap resamples
+lesions, so it reflects the sampling of lesions but treats the six readers
+as fixed; the reader variance is estimated from these six readers only,
+and a study with few readers should say so.
+
 ## 5. What changes in the decisions
 
 Re-assess the three lesions with the curved inter-reader limits:
@@ -173,7 +222,15 @@ cases[, c("baseline", "followup", "change_mm", "change_pct", "RECIST",
 
 Lesion A is now recognized as a real change and lesion C as reader
 disagreement. Lesion B, near the size where the curved band crosses the
-constant limit, is judged the same way by both.
+constant limit, is judged the same way by both. The confidence bands
+show that these verdicts do not hinge on sampling error: the change of
+lesion A (8 mm) exceeds even the upper confidence limit of the curved
+limit at its size, and the change of lesion C (14 mm) lies below its lower
+confidence limit.
+
+```{r cases-ci}
+round(loa_band(vcb$inter, mean = m_case, ci = TRUE)[, c("mean", "upper", "upper_lo", "upper_hi")], 2)
+```
 
 The same comparison over the whole size range shows where a 20% increase
 can be produced by reader disagreement alone. Because the limits depend on
@@ -232,6 +289,7 @@ limits on the original scale where the clinical comparison is made.
 ```{r summary-workflow, eval = FALSE}
 p   <- loa_pairs(diameter, lesion, reader, session, type = "inter")
 cmp <- loa_compare(p)                 # decision table + overlay plot
-vc  <- loa_components(diameter, lesion, reader, transform = cmp$best)
-loa_band(vc$inter, mean = c(10, 30, 100))
+vc  <- loa_components(diameter, lesion, reader, transform = cmp$best,
+                      nboot = 500)          # cluster-bootstrap intervals
+loa_band(vc$inter, mean = c(10, 30, 100), ci = TRUE)
 ```
