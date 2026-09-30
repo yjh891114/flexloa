@@ -132,3 +132,54 @@ test_that("loa_components handles a single-session design", {
   expect_equal(vc$k_mean, 1)
   expect_gt(vc$inter$loa_t[["upper"]], 0)
 })
+
+test_that("analytic confidence intervals follow the Bland-Altman approximation", {
+  d <- simulate_agreement(nsubj = 120, transform = "identity", seed = 3)
+  f <- loa_fit(d$m1, d$m2, transform = "identity")
+  N <- f$gof$n_pairs; s <- f$sd; z <- qnorm(0.975); tq <- qt(0.975, N - 1)
+  se_lim <- s * sqrt(1 / N + z^2 / (2 * (N - 1)))
+  expect_equal(unname(f$ci_t["upper", ]), c(f$loa_t[["upper"]] - tq * se_lim,
+                                            f$loa_t[["upper"]] + tq * se_lim))
+  expect_equal(unname(f$ci_t["bias", ]), c(f$bias - tq * s / sqrt(N), f$bias + tq * s / sqrt(N)))
+  expect_true(all(f$ci_t[, "lo"] <= c(f$bias, f$loa_t)) && all(f$ci_t[, "hi"] >= c(f$bias, f$loa_t)))
+})
+
+test_that("back-transformed confidence bands enclose the limits and are monotone in L", {
+  d <- simulate_agreement(nsubj = 150, transform = "sqrt", seed = 4)
+  f <- loa_fit(d$m1, d$m2, transform = "sqrt")
+  b <- loa_band(f, mean = c(10, 30, 100), ci = TRUE)
+  expect_true(all(b$upper_lo <= b$upper & b$upper <= b$upper_hi))
+  expect_true(all(b$lower_lo <= b$lower & b$lower <= b$lower_hi))
+  ## exactness: the band at the CI end point equals the band of a fit whose limit is that end point
+  L_hi <- f$ci_t["upper", "hi"]
+  direct <- loa_band(list(spec = f$spec, loa_t = c(lower = -L_hi, upper = L_hi), bias = 0), 30)$upper
+  expect_equal(b$upper_hi[2], direct)
+  expect_error(loa_band(list(spec = f$spec, loa_t = f$loa_t, bias = 0), 30, ci = TRUE), "ci_t")
+})
+
+test_that("cluster bootstrap intervals are reproducible and wider for correlated pairs", {
+  data(recist_readings)
+  p <- loa_pairs(recist_readings$diameter, recist_readings$lesion,
+                 recist_readings$reader, recist_readings$session, type = "inter")
+  f0 <- loa_fit(p, transform = "sqrt")
+  f1 <- loa_fit(p, transform = "sqrt", nboot = 100, seed = 11)
+  f2 <- loa_fit(p, transform = "sqrt", nboot = 100, seed = 11)
+  expect_equal(f1$ci_t, f2$ci_t)
+  expect_match(f1$ci_method, "units")
+  expect_gt(diff(f1$ci_t["upper", ]), diff(f0$ci_t["upper", ]))
+  expect_true(f1$ci_t["upper", "lo"] < f1$loa_t[["upper"]] && f1$loa_t[["upper"]] < f1$ci_t["upper", "hi"])
+})
+
+test_that("loa_components bootstrap returns intervals usable by loa_band", {
+  set.seed(9)
+  truth <- rlnorm(30, 3.3, 0.5)
+  dat <- expand.grid(id = 1:30, reader = 1:3, rep = 1:2)
+  dat$value <- (sqrt(truth[dat$id]) + rnorm(3, 0, 0.1)[dat$reader] + rnorm(nrow(dat), 0, 0.25))^2
+  vc <- loa_components(dat$value, dat$id, dat$reader, transform = "sqrt", nboot = 20, seed = 2)
+  expect_equal(dim(vc$varcomp_ci), c(4L, 2L))
+  expect_true(all(vc$varcomp_ci[, "lo"] <= vc$varcomp_ci[, "hi"]))
+  b <- loa_band(vc$inter, mean = c(20, 50), ci = TRUE)
+  expect_true(all(c("upper_lo", "upper_hi") %in% names(b)))
+  expect_true(all(b$upper_lo <= b$upper_hi))
+  expect_equal(vc$inter$ci_t["lower", "lo"], -vc$inter$ci_t["upper", "hi"])
+})
