@@ -4,7 +4,17 @@
 \alias{loa_fit}
 \title{Fit a transformation-based limits-of-agreement model to paired data}
 \usage{
-loa_fit(x, y = NULL, transform = "sqrt", level = 0.95, n = NULL)
+loa_fit(
+  x,
+  y = NULL,
+  transform = "sqrt",
+  level = 0.95,
+  n = NULL,
+  conf = 0.95,
+  cluster = NULL,
+  nboot = 0,
+  seed = NULL
+)
 }
 \arguments{
 \item{x, y}{Numeric vectors: the first and second measurement of each
@@ -16,12 +26,28 @@ subject/lesion (original scale). Alternatively \code{x} may be a
 \item{level}{Nominal LOA coverage level (default 0.95).}
 
 \item{n}{Passed to \code{\link{loa_transform}} for \code{"root"}.}
+
+\item{conf}{Confidence level of the intervals for the bias and the
+limits (default 0.95).}
+
+\item{cluster}{Optional vector identifying the unit each pair belongs
+to, used by the cluster bootstrap; taken from \code{x} when \code{x}
+is a \code{\link{loa_pairs}} object.}
+
+\item{nboot}{Number of bootstrap resamples for the confidence
+intervals; \code{0} (default) uses the Bland-Altman approximation.
+Resampling is by \code{cluster} when available, otherwise by pair.}
+
+\item{seed}{Optional seed for the bootstrap.}
 }
 \value{
 An object of class \code{"loa_fit"}: a list with elements
   \code{spec}, \code{bias}, \code{sd}, \code{loa_t} (transformed
-  scale), \code{level}, \code{data} (means and differences), and
-  \code{gof} (a one-row data frame of the criteria above).
+  scale), \code{ci_t} (a 3-by-2 matrix of confidence limits for
+  \code{bias}, \code{lower} and \code{upper} on the transformed
+  scale), \code{ci_method}, \code{conf}, \code{level}, \code{data}
+  (means and differences), and \code{gof} (a one-row data frame of
+  the criteria above).
 }
 \description{
 Fits a measurement-error model on a chosen transformed scale to paired
@@ -55,15 +81,38 @@ between candidate transformations:
     produces.
 }
 }
+\details{
+\strong{Confidence intervals.} The limits are estimates, and the
+function reports a confidence interval for the bias and for each limit
+on the transformed scale (\code{ci_t}). By default the approximation
+of Bland and Altman (1986, 1999) is used: the standard error of a limit
+is \eqn{s\sqrt{1/N + z^2/(2(N-1))}} (about \eqn{1.71 s/\sqrt{N}} for
+95\% limits) and the interval uses the t distribution with
+\eqn{N - 1} degrees of freedom. This assumes independent pairs. When
+the pairs share units, as in the inter-reader pairs formed by
+\code{\link{loa_pairs}}, the approximation overstates the precision;
+setting \code{nboot > 0} then replaces it by a cluster bootstrap that
+resamples units (\code{cluster}, taken from the \code{loa_pairs}
+object automatically) with replacement and reports percentile
+intervals. Either interval is back-transformed to the original scale
+by \code{\link{loa_band}(..., ci = TRUE)}: because the original-scale
+limit at a given mean is a monotone function of the transformed-scale
+limit, the end points of the interval map to the end points of a
+pointwise confidence band around the curved limit.
+}
 \examples{
 d <- simulate_agreement(nsubj = 150, transform = "sqrt", seed = 1)
 f <- loa_fit(d$m1, d$m2, transform = "sqrt")
 f
-head(loa_band(f, mean = c(20, 50, 100)))
+f$ci_t
+loa_band(f, mean = c(20, 50, 100), ci = TRUE)
 }
 \references{
 Bland JM, Altman DG. Statistical methods for assessing agreement
 between two methods of clinical measurement. Lancet. 1986;327:307-10.
+
+Bland JM, Altman DG. Measuring agreement in method comparison studies.
+Stat Methods Med Res. 1999;8:135-60.
 
 Yoon JH, Yoon SH, Hahn S. Development of an algorithm for evaluating
 the impact of measurement variability on response categorization in

@@ -4,7 +4,7 @@
 \alias{loa_band}
 \title{Curved limits of agreement on the original measurement scale}
 \usage{
-loa_band(object, mean, method = c("exact", "mvt"))
+loa_band(object, mean, method = c("exact", "mvt"), ci = FALSE)
 }
 \arguments{
 \item{object}{A \code{loa_fit} object, one element of a
@@ -20,6 +20,17 @@ evaluate the band.}
 the first-order (mean value theorem) approximation
 \eqn{D = L / f'(m)}, which reproduces the closed-form expressions
 for root transformations given in Yoon et al. (2019).}
+
+\item{ci}{Logical; if \code{TRUE} and \code{object} carries
+confidence limits \code{ci_t} (as returned by \code{\link{loa_fit}}
+and \code{\link{loa_components}}), the end points of those limits
+are back-transformed as well, giving pointwise confidence bands
+around the bias curve and the two limits (columns \code{bias_lo},
+\code{bias_hi}, \code{lower_lo}, \code{lower_hi},
+\code{upper_lo}, \code{upper_hi}). Because the original-scale
+difference \eqn{D} solving the defining equation is a monotone
+function of \eqn{L} for a fixed mean, the confidence limits of
+\eqn{L} map exactly to the confidence limits of \eqn{D}.}
 }
 \value{
 A \code{data.frame} with columns \code{mean}, \code{bias},

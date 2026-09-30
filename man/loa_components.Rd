@@ -11,7 +11,10 @@ loa_components(
   transform = "sqrt",
   level = 0.95,
   n = NULL,
-  trim = 0
+  trim = 0,
+  nboot = 0,
+  conf = 0.95,
+  seed = NULL
 )
 }
 \arguments{
@@ -28,6 +31,19 @@ loa_components(
 \item{trim}{Fraction (0 to 0.5) of observations with the largest
 absolute standardized residuals from an initial fit to remove before
 the final fit; \code{0} (default) fits all observations once.}
+
+\item{nboot}{Number of cluster-bootstrap resamples used for confidence
+intervals of the variance components and of the intra- and
+inter-reader limits; \code{0} (default) gives point estimates only.
+Units (\code{id}) are resampled with replacement, the whole
+procedure (including trimming) is repeated on each resample, and
+percentile intervals are reported. With \pkg{lme4} each resample
+refits the mixed model, so a few hundred resamples take minutes on
+large designs.}
+
+\item{conf}{Confidence level of the bootstrap intervals.}
+
+\item{seed}{Optional seed for the bootstrap.}
 }
 \value{
 An object of class \code{"loa_components"}: a list with
@@ -41,7 +57,11 @@ An object of class \code{"loa_components"}: a list with
   \code{lmer} or \code{lm} object of the final fit), and three sub-objects
   \code{intra}, \code{inter} and \code{inter_mean}, each a list with
   \code{spec}, \code{bias = 0} and \code{loa_t}, suitable for
-  \code{\link{loa_band}}.
+  \code{\link{loa_band}}. When \code{nboot > 0}, \code{varcomp_ci}
+  (a 4-by-2 matrix), \code{nboot}, \code{conf} and, in each of the
+  three sub-objects, \code{ci_t} (confidence limits of the bias and
+  of the two limits on the transformed scale, usable with
+  \code{loa_band(..., ci = TRUE)}) are added.
 }
 \description{
 Estimates variance components on a transformed scale from a replicated
@@ -88,6 +108,12 @@ vc <- loa_components(dat$value, dat$id, dat$reader, transform = "sqrt")
 vc
 loa_band(vc$inter, mean = c(20, 50, 100))
 loa_band(vc$inter_mean, mean = c(20, 50, 100))
+\donttest{
+vcb <- loa_components(dat$value, dat$id, dat$reader, transform = "sqrt",
+                      nboot = 50, seed = 1)
+vcb$varcomp_ci
+loa_band(vcb$inter, mean = c(20, 50, 100), ci = TRUE)
+}
 }
 \references{
 Yoon JH, Yoon SH, Hahn S. Development of an algorithm for evaluating

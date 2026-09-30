@@ -9,6 +9,7 @@
   grid_n = 200,
   cols = NULL,
   ltys = NULL,
+  ci = FALSE,
   xlab = "Average of the two measurements",
   ylab = "Difference",
   ...
@@ -20,6 +21,9 @@
 \item{grid_n}{Number of grid points for the bands.}
 
 \item{cols, ltys}{Optional colors / line types per transformation.}
+
+\item{ci}{Logical; shade the pointwise confidence bands of the limits
+of the preferred transformation (\code{x$best}).}
 
 \item{xlab, ylab}{Axis labels.}
 

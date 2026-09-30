@@ -7,6 +7,8 @@
 \method{plot}{loa_fit}(
   x,
   grid_n = 200,
+  ci = FALSE,
+  ci_col = grDevices::adjustcolor("grey30", 0.2),
   xlab = "Average of the two measurements",
   ylab = "Difference",
   ...
@@ -16,6 +18,11 @@
 \item{x}{A \code{loa_fit} object.}
 
 \item{grid_n}{Number of grid points for the band.}
+
+\item{ci}{Logical; draw the pointwise confidence bands of the limits
+(and of the bias) as shaded ribbons (see \code{\link{loa_band}}).}
+
+\item{ci_col}{Fill color of the ribbons.}
 
 \item{xlab, ylab}{Axis labels.}
 
