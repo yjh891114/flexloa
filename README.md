@@ -2,10 +2,10 @@
 
 **Conventional Bland–Altman limits of agreement (LOA), extended to error that grows with the magnitude of the measurement.**
 
-`flexloa` operationalises the exploratory strategy used in Yoon, Yoon & Hahn
+`flexloa` operationalizes the exploratory strategy used in Yoon, Yoon & Hahn
 (2019, *BMC Medical Research Methodology* 19:90): instead of assuming constant
 Bland–Altman limits, it computes the conventional limits under several candidate
-variance-stabilising transformations (identity, √, ∛, general n-th root, log),
+variance-stabilizing transformations (identity, √, ∛, general n-th root, log),
 back-transforms each set of limits into a **curved LOA band on the
 original scale**, and reports the **goodness-of-fit evidence needed to choose
 between them**:
@@ -15,6 +15,7 @@ between them**:
 | Shapiro–Wilk p (transformed differences) | Normality of errors on the chosen scale |
 | Heteroscedasticity ρ, p (Spearman, \|d − bias\| vs mean; Bland & Altman 1999) | Whether the transformation removed the error's size-dependence |
 | Proportional-bias slope, p (regression of d on mean) | Whether bias changes with the measurement scale |
+| Confidence intervals for the limits (`ci_t`, `loa_band(ci = TRUE)`) | Bland–Altman approximate intervals for independent pairs, or cluster-bootstrap intervals (`nboot`) for pairs that share units; the interval end points are back-transformed into pointwise confidence bands around the curved limits, so that interchangeability can be judged by the outer edge of the band rather than by the point estimate |
 | Empirical coverage, overall and by thirds of the pair means | % of observed differences inside the back-transformed band (target ≈ level). Overall coverage is ≈ level for any transformation fitted to the same data; the coverage in the lower / middle / upper third of the measurement range shows whether the band is too wide at one end and too narrow at the other |
 
 ## Worked example
@@ -80,7 +81,7 @@ loa_band(vc$inter_mean, mean = 50)  # between-reader limits, session-averaged re
 * Man pages are written as roxygen2 comments; run `devtools::document()` to
   regenerate `man/` before `R CMD check`.
 * Transformations are ranked by the classical heteroscedasticity criterion
-  (Spearman correlation between absolute centred differences and means):
+  (Spearman correlation between absolute centered differences and means):
   the preferred scale is the one on which the error no longer depends on
   the size of the measurement.
 * `loa_band()` returns `NA` where a limit is not attainable within the domain

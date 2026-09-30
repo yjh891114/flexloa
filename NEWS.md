@@ -21,3 +21,11 @@
   decisions.
 * `simulate_agreement()`: simulated paired data with error homoscedastic on a
   chosen transformed scale.
+* Confidence intervals for the limits: `loa_fit()` reports the Bland-Altman
+  (1986, 1999) approximate intervals for the bias and the limits on the
+  transformed scale, or cluster-bootstrap percentile intervals (`nboot`,
+  resampling units of a `loa_pairs` object) for correlated pairs;
+  `loa_components(nboot = )` gives cluster-bootstrap intervals for the
+  variance components and the intra-/inter-reader limits; `loa_band(ci =
+  TRUE)` back-transforms the interval end points into pointwise confidence
+  bands around the curved limits, and `plot(ci = TRUE)` shades them.
