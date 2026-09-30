@@ -70,7 +70,7 @@ disagree by 15 mm and more. The two horizontal lines are too wide on the
 left and too narrow on the right. The decision table says the same thing
 in numbers. The overall coverage looks fine (`coverage` ≈ 0.95), because a
 band that is too wide at one end and too narrow at the other cancels the
-two errors in the total. The coverage by thirds of the range exposes it:
+two errors in the total. The coverage by thirds of the pairs ranked by their means (tertiles) exposes it:
 
 ```{r constant-cov}
 f_id$gof[c("hetero_rho", "hetero_p", "coverage", "cov_low", "cov_mid", "cov_high")]
@@ -176,11 +176,21 @@ disagreement. Lesion B, near the size where the curved band crosses the
 constant limit, is judged the same way by both.
 
 The same comparison over the whole size range shows where a 20% increase
-can be produced by reader disagreement alone:
+can be produced by reader disagreement alone. Because the limits depend on
+the mean of the two readings, the increase from a baseline diameter `b`
+that is still within the limits is obtained by solving `f(b + D) - f(b) = L`
+on the square-root scale (equivalently, by evaluating the band at
+`b + D/2`), which is what the code below does:
 
 ```{r decision-plot, fig.cap = "Minimum change distinguishable from inter-reader error, constant versus curved limits, against the RECIST progression threshold."}
 grid <- seq(8, 160, by = 1)
-curved <- loa_band(vc$inter, mean = grid)$upper
+## The limits are a function of the mean of the two readings. For an
+## increase D from a baseline diameter b the mean is b + D/2, so the
+## largest increase that is still within the limits solves
+## f(b + D) - f(b) = L, i.e. D = finv(f(b) + L) - b.  For the constant
+## limits this is simply the constant.
+L_sqrt <- vc$inter$loa_t[["upper"]]
+curved <- vc$inter$spec$finv(vc$inter$spec$f(grid) + L_sqrt) - grid
 const  <- loa_band(f_id, mean = grid)$upper
 plot(grid, curved, type = "l", lwd = 2, col = "firebrick", ylim = c(0, 40),
      xlab = "Baseline lesion diameter (mm)", ylab = "Increase at re-reading (mm)")
@@ -197,11 +207,11 @@ range(grid[0.2 * grid <= const]);  range(grid[0.2 * grid <= curved])
 ```
 
 Under constant limits a 20% increase is within reader error for lesions up
-to about 40 mm; under the curved limits, up to about 50 mm. The two bands
+to about 40 mm; under the curved limits, up to about 55 mm. The two bands
 also give different answers to the interchangeability question. If the
 acceptable difference between readers is set at 15% of the measurement,
-the curved band lies within that tolerance only for lesions above about
-90 mm, whereas the constant limit would certify interchangeability from
+the curved band lies within that tolerance only for lesions of about
+100 mm and above, whereas the constant limit would certify interchangeability from
 about 55 mm upwards, over a range where the true error exceeds the
 tolerance.
 
