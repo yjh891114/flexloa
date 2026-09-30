@@ -11,9 +11,9 @@
 #'   \item \strong{Shapiro-Wilk test} of the transformed-scale differences
 #'     (normality of the error distribution on the working scale).
 #'   \item \strong{Heteroscedasticity (size-dependency) test}: the
-#'     Spearman rank correlation between the absolute centred differences
+#'     Spearman rank correlation between the absolute centered differences
 #'     and the pair means, as recommended by Bland and Altman (1999); a
-#'     well-chosen variance-stabilising transformation should render this
+#'     well-chosen variance-stabilizing transformation should render this
 #'     correlation negligible and non-significant.
 #'   \item \strong{Proportional-bias test}: the ordinary least-squares
 #'     regression of the transformed differences on the pair means
@@ -31,21 +31,54 @@
 #'     produces.
 #' }
 #'
+#' \strong{Confidence intervals.} The limits are estimates, and the
+#' function reports a confidence interval for the bias and for each limit
+#' on the transformed scale (\code{ci_t}). By default the approximation
+#' of Bland and Altman (1986, 1999) is used: the standard error of a limit
+#' is \eqn{s\sqrt{1/N + z^2/(2(N-1))}} (about \eqn{1.71 s/\sqrt{N}} for
+#' 95\% limits) and the interval uses the t distribution with
+#' \eqn{N - 1} degrees of freedom. This assumes independent pairs. When
+#' the pairs share units, as in the inter-reader pairs formed by
+#' \code{\link{loa_pairs}}, the approximation overstates the precision;
+#' setting \code{nboot > 0} then replaces it by a cluster bootstrap that
+#' resamples units (\code{cluster}, taken from the \code{loa_pairs}
+#' object automatically) with replacement and reports percentile
+#' intervals. Either interval is back-transformed to the original scale
+#' by \code{\link{loa_band}(..., ci = TRUE)}: because the original-scale
+#' limit at a given mean is a monotone function of the transformed-scale
+#' limit, the end points of the interval map to the end points of a
+#' pointwise confidence band around the curved limit.
+#'
 #' @param x,y Numeric vectors: the first and second measurement of each
 #'   subject/lesion (original scale). Alternatively \code{x} may be a
 #'   \code{\link{loa_pairs}} object, in which case \code{y} is omitted.
 #' @param transform Transformation passed to \code{\link{loa_transform}}.
 #' @param level Nominal LOA coverage level (default 0.95).
 #' @param n Passed to \code{\link{loa_transform}} for \code{"root"}.
+#' @param conf Confidence level of the intervals for the bias and the
+#'   limits (default 0.95).
+#' @param cluster Optional vector identifying the unit each pair belongs
+#'   to, used by the cluster bootstrap; taken from \code{x} when \code{x}
+#'   is a \code{\link{loa_pairs}} object.
+#' @param nboot Number of bootstrap resamples for the confidence
+#'   intervals; \code{0} (default) uses the Bland-Altman approximation.
+#'   Resampling is by \code{cluster} when available, otherwise by pair.
+#' @param seed Optional seed for the bootstrap.
 #'
 #' @return An object of class \code{"loa_fit"}: a list with elements
 #'   \code{spec}, \code{bias}, \code{sd}, \code{loa_t} (transformed
-#'   scale), \code{level}, \code{data} (means and differences), and
-#'   \code{gof} (a one-row data frame of the criteria above).
+#'   scale), \code{ci_t} (a 3-by-2 matrix of confidence limits for
+#'   \code{bias}, \code{lower} and \code{upper} on the transformed
+#'   scale), \code{ci_method}, \code{conf}, \code{level}, \code{data}
+#'   (means and differences), and \code{gof} (a one-row data frame of
+#'   the criteria above).
 #'
 #' @references
 #' Bland JM, Altman DG. Statistical methods for assessing agreement
 #' between two methods of clinical measurement. Lancet. 1986;327:307-10.
+#'
+#' Bland JM, Altman DG. Measuring agreement in method comparison studies.
+#' Stat Methods Med Res. 1999;8:135-60.
 #'
 #' Yoon JH, Yoon SH, Hahn S. Development of an algorithm for evaluating
 #' the impact of measurement variability on response categorization in
@@ -55,15 +88,23 @@
 #' d <- simulate_agreement(nsubj = 150, transform = "sqrt", seed = 1)
 #' f <- loa_fit(d$m1, d$m2, transform = "sqrt")
 #' f
-#' head(loa_band(f, mean = c(20, 50, 100)))
+#' f$ci_t
+#' loa_band(f, mean = c(20, 50, 100), ci = TRUE)
 #' @export
 loa_fit <- function(x, y = NULL, transform = "sqrt", level = 0.95,
-                    n = NULL) {
+                    n = NULL, conf = 0.95, cluster = NULL, nboot = 0,
+                    seed = NULL) {
+  if (inherits(x, "loa_pairs") && is.null(cluster)) cluster <- x$id
   xy <- .resolve_xy(x, y); x <- xy$x; y <- xy$y
   spec <- loa_transform(transform, n = n)
   if (length(x) != length(y))
     stop("`x` and `y` must have the same length.")
   ok <- is.finite(x) & is.finite(y)
+  if (!is.null(cluster)) {
+    if (length(cluster) != length(x))
+      stop("`cluster` must have the same length as the pairs.")
+    cluster <- cluster[ok]
+  }
   x <- x[ok]; y <- y[ok]
   N <- length(x)
   if (N < 3L) stop("At least 3 complete pairs are required.")
@@ -77,6 +118,10 @@ loa_fit <- function(x, y = NULL, transform = "sqrt", level = 0.95,
   s    <- stats::sd(d)
   z    <- stats::qnorm(1 - (1 - level) / 2)
   loa_t <- c(lower = bias - z * s, upper = bias + z * s)
+
+  ## --- confidence intervals on the transformed scale -------------------
+  ci <- .loa_ci(d, bias, s, z, conf = conf, cluster = cluster,
+                nboot = nboot, seed = seed)
 
   ## --- classical Bland-Altman diagnostics ------------------------------
   means <- (x + y) / 2
@@ -129,11 +174,60 @@ loa_fit <- function(x, y = NULL, transform = "sqrt", level = 0.95,
     stringsAsFactors = FALSE)
 
   out <- list(spec = spec, bias = bias, sd = s, loa_t = loa_t,
+              ci_t = ci$ci, ci_method = ci$method, conf = conf,
               level = level,
               data = data.frame(mean = means, diff = diffs, tdiff = d),
               gof = gof)
   class(out) <- "loa_fit"
   out
+}
+
+## Confidence intervals for the bias and the two limits on the
+## transformed scale: Bland-Altman (1999) approximation, or a (cluster)
+## percentile bootstrap when nboot > 0.
+.loa_ci <- function(d, bias, s, z, conf = 0.95, cluster = NULL,
+                    nboot = 0, seed = NULL) {
+  N <- length(d)
+  if (nboot > 0) {
+    if (!is.null(seed)) {
+      old <- if (exists(".Random.seed", envir = globalenv()))
+        get(".Random.seed", envir = globalenv()) else NULL
+      on.exit(if (is.null(old)) rm(".Random.seed", envir = globalenv())
+              else assign(".Random.seed", old, envir = globalenv()))
+      set.seed(seed)
+    }
+    if (is.null(cluster)) {
+      idx_list <- function() sample.int(N, N, replace = TRUE)
+      unit <- "pairs"
+    } else {
+      cl <- as.integer(factor(cluster)); groups <- split(seq_len(N), cl)
+      G <- length(groups)
+      idx_list <- function() unlist(groups[sample.int(G, G, replace = TRUE)],
+                                    use.names = FALSE)
+      unit <- "units"
+    }
+    bt <- matrix(NA_real_, nboot, 3L)
+    for (b in seq_len(nboot)) {
+      db <- d[idx_list()]
+      mb <- mean(db); sb <- stats::sd(db)
+      bt[b, ] <- c(mb, mb - z * sb, mb + z * sb)
+    }
+    a <- (1 - conf) / 2
+    ci <- t(apply(bt, 2L, stats::quantile, probs = c(a, 1 - a),
+                  na.rm = TRUE, names = FALSE))
+    method <- sprintf("percentile bootstrap, %d resamples of %s",
+                      nboot, unit)
+  } else {
+    se_bias <- s / sqrt(N)
+    se_lim  <- s * sqrt(1 / N + z^2 / (2 * (N - 1)))
+    tq <- stats::qt(1 - (1 - conf) / 2, df = N - 1)
+    est <- c(bias, bias - z * s, bias + z * s)
+    se  <- c(se_bias, se_lim, se_lim)
+    ci  <- cbind(est - tq * se, est + tq * se)
+    method <- "Bland-Altman approximation (independent pairs)"
+  }
+  dimnames(ci) <- list(c("bias", "lower", "upper"), c("lo", "hi"))
+  list(ci = ci, method = method)
 }
 
 #' Compare candidate transformations for limits of agreement

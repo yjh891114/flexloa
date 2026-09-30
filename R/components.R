@@ -41,6 +41,16 @@
 #' @param trim Fraction (0 to 0.5) of observations with the largest
 #'   absolute standardized residuals from an initial fit to remove before
 #'   the final fit; \code{0} (default) fits all observations once.
+#' @param nboot Number of cluster-bootstrap resamples used for confidence
+#'   intervals of the variance components and of the intra- and
+#'   inter-reader limits; \code{0} (default) gives point estimates only.
+#'   Units (\code{id}) are resampled with replacement, the whole
+#'   procedure (including trimming) is repeated on each resample, and
+#'   percentile intervals are reported. With \pkg{lme4} each resample
+#'   refits the mixed model, so a few hundred resamples take minutes on
+#'   large designs.
+#' @param conf Confidence level of the bootstrap intervals.
+#' @param seed Optional seed for the bootstrap.
 #'
 #' @return An object of class \code{"loa_components"}: a list with
 #'   \code{spec}, \code{varcomp} (named numeric: \code{id},
@@ -53,7 +63,11 @@
 #'   \code{lmer} or \code{lm} object of the final fit), and three sub-objects
 #'   \code{intra}, \code{inter} and \code{inter_mean}, each a list with
 #'   \code{spec}, \code{bias = 0} and \code{loa_t}, suitable for
-#'   \code{\link{loa_band}}.
+#'   \code{\link{loa_band}}. When \code{nboot > 0}, \code{varcomp_ci}
+#'   (a 4-by-2 matrix), \code{nboot}, \code{conf} and, in each of the
+#'   three sub-objects, \code{ci_t} (confidence limits of the bias and
+#'   of the two limits on the transformed scale, usable with
+#'   \code{loa_band(..., ci = TRUE)}) are added.
 #'
 #' @references
 #' Yoon JH, Yoon SH, Hahn S. Development of an algorithm for evaluating
@@ -70,9 +84,16 @@
 #' vc
 #' loa_band(vc$inter, mean = c(20, 50, 100))
 #' loa_band(vc$inter_mean, mean = c(20, 50, 100))
+#' \donttest{
+#' vcb <- loa_components(dat$value, dat$id, dat$reader, transform = "sqrt",
+#'                       nboot = 50, seed = 1)
+#' vcb$varcomp_ci
+#' loa_band(vcb$inter, mean = c(20, 50, 100), ci = TRUE)
+#' }
 #' @export
 loa_components <- function(value, id, reader, transform = "sqrt",
-                           level = 0.95, n = NULL, trim = 0) {
+                           level = 0.95, n = NULL, trim = 0, nboot = 0,
+                           conf = 0.95, seed = NULL) {
   spec <- loa_transform(transform, n = n)
   if (!is.numeric(trim) || length(trim) != 1L || trim < 0 || trim >= 0.5)
     stop("`trim` must be a single number in [0, 0.5).")
@@ -129,21 +150,28 @@ loa_components <- function(value, id, reader, transform = "sqrt",
     }
   }
 
-  ## optional trimming on standardized residuals of an initial fit
-  n_trimmed <- 0L
-  if (trim > 0) {
-    f0 <- fit_once(ty, id, reader)
-    z  <- abs(f0$resid) / stats::sd(f0$resid)
-    n_trimmed <- as.integer(floor(trim * length(ty)))
-    if (n_trimmed > 0L) {
-      drop <- order(z, decreasing = TRUE)[seq_len(n_trimmed)]
-      keep <- setdiff(seq_along(ty), drop)
-      ty <- ty[keep]; id <- id[keep]; reader <- reader[keep]
+  ## estimation (optional trimming, then the final fit), reused by the
+  ## bootstrap
+  estimate <- function(ty, id, reader) {
+    n_trimmed <- 0L
+    if (trim > 0) {
+      f0 <- fit_once(ty, id, reader)
+      z  <- abs(f0$resid) / stats::sd(f0$resid)
+      n_trimmed <- as.integer(floor(trim * length(ty)))
+      if (n_trimmed > 0L) {
+        drop <- order(z, decreasing = TRUE)[seq_len(n_trimmed)]
+        keep <- setdiff(seq_along(ty), drop)
+        ty <- ty[keep]; id <- id[keep]; reader <- reader[keep]
+      }
     }
+    f <- fit_once(ty, id, reader)
+    f$k_mean <- length(ty) / (nlevels(droplevels(id)) *
+                              nlevels(droplevels(reader)))
+    f$n_used <- length(ty); f$n_trimmed <- n_trimmed
+    f
   }
-  f <- fit_once(ty, id, reader)
-  k_mean <- length(ty) / (nlevels(droplevels(id)) *
-                          nlevels(droplevels(reader)))
+  f <- estimate(ty, id, reader)
+  k_mean <- f$k_mean; n_trimmed <- f$n_trimmed
 
   ## residual diagnostics of the final model
   r <- f$resid; fv <- f$fitted
@@ -164,9 +192,53 @@ loa_components <- function(value, id, reader, transform = "sqrt",
               varcomp = c(id = f$v_id, reader = f$v_rd,
                           id_reader = f$v_int, residual = f$v_e),
               method = f$method, level = level, k_mean = k_mean,
-              n_used = length(ty), n_trimmed = n_trimmed, diag = diag,
+              n_used = f$n_used, n_trimmed = n_trimmed, diag = diag,
               fit = f$fit,
               intra = intra, inter = inter, inter_mean = inter_mean)
+
+  ## cluster bootstrap over units for confidence intervals
+  if (nboot > 0) {
+    if (!is.null(seed)) {
+      old <- if (exists(".Random.seed", envir = globalenv()))
+        get(".Random.seed", envir = globalenv()) else NULL
+      on.exit(if (is.null(old)) rm(".Random.seed", envir = globalenv())
+              else assign(".Random.seed", old, envir = globalenv()))
+      set.seed(seed)
+    }
+    units <- levels(id); G <- length(units)
+    rows_of <- split(seq_along(ty), id)
+    bt <- matrix(NA_real_, nboot, 7L,
+                 dimnames = list(NULL, c("id", "reader", "id_reader",
+                                         "residual", "intra", "inter",
+                                         "inter_mean")))
+    for (b in seq_len(nboot)) {
+      draw <- sample.int(G, G, replace = TRUE)
+      idx <- unlist(rows_of[draw], use.names = FALSE)
+      newid <- factor(rep(seq_len(G), lengths(rows_of[draw])))
+      fb <- tryCatch(suppressMessages(suppressWarnings(
+        estimate(ty[idx], newid, reader[idx]))), error = function(e) NULL)
+      if (is.null(fb)) next
+      bt[b, ] <- c(fb$v_id, fb$v_rd, fb$v_int, fb$v_e,
+                   z * sqrt(2 * fb$v_e),
+                   z * sqrt(2 * (fb$v_rd + fb$v_int + fb$v_e)),
+                   z * sqrt(2 * (fb$v_rd + fb$v_int + fb$v_e / fb$k_mean)))
+    }
+    a <- (1 - conf) / 2
+    q <- apply(bt, 2L, stats::quantile, probs = c(a, 1 - a), na.rm = TRUE,
+               names = FALSE)
+    out$varcomp_ci <- t(q[, 1:4]); dimnames(out$varcomp_ci) <- list(
+      c("id", "reader", "id_reader", "residual"), c("lo", "hi"))
+    add_ci <- function(o, col) {
+      o$ci_t <- rbind(bias = c(0, 0), lower = -rev(q[, col]),
+                      upper = q[, col])
+      dimnames(o$ci_t) <- list(c("bias", "lower", "upper"), c("lo", "hi"))
+      o
+    }
+    out$intra <- add_ci(out$intra, "intra")
+    out$inter <- add_ci(out$inter, "inter")
+    out$inter_mean <- add_ci(out$inter_mean, "inter_mean")
+    out$nboot <- sum(!is.na(bt[, 1L])); out$conf <- conf
+  }
   class(out) <- "loa_components"
   out
 }

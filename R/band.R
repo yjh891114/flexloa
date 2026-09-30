@@ -50,6 +50,16 @@
 #'   numeric, \code{lower}/\code{upper}) and optionally \code{bias}.
 #' @param mean Numeric vector of means (original scale) at which to
 #'   evaluate the band.
+#' @param ci Logical; if \code{TRUE} and \code{object} carries
+#'   confidence limits \code{ci_t} (as returned by \code{\link{loa_fit}}
+#'   and \code{\link{loa_components}}), the end points of those limits
+#'   are back-transformed as well, giving pointwise confidence bands
+#'   around the bias curve and the two limits (columns \code{bias_lo},
+#'   \code{bias_hi}, \code{lower_lo}, \code{lower_hi},
+#'   \code{upper_lo}, \code{upper_hi}). Because the original-scale
+#'   difference \eqn{D} solving the defining equation is a monotone
+#'   function of \eqn{L} for a fixed mean, the confidence limits of
+#'   \eqn{L} map exactly to the confidence limits of \eqn{D}.
 #' @param method \code{"exact"} (default) solves the defining equation
 #'   \eqn{f(m + D/2) - f(m - D/2) = L} numerically; \code{"mvt"} uses
 #'   the first-order (mean value theorem) approximation
@@ -66,7 +76,8 @@
 #'   is returned where a limit is not attainable within the domain of
 #'   the transformation.
 #' @export
-loa_band <- function(object, mean, method = c("exact", "mvt")) {
+loa_band <- function(object, mean, method = c("exact", "mvt"),
+                     ci = FALSE) {
   method <- match.arg(method)
   spec <- object$spec
   loa_t <- object$loa_t
@@ -80,15 +91,21 @@ loa_band <- function(object, mean, method = c("exact", "mvt")) {
       out
     }
     fp <- fprime(mean)
-    return(data.frame(mean = mean, bias = bias / fp,
-                      lower = loa_t[["lower"]] / fp,
-                      upper = loa_t[["upper"]] / fp))
+    solve_L <- function(L) L / fp
+  } else {
+    solve_L <- function(L) vapply(mean, function(m) .solve_band(spec, L, m),
+                                  numeric(1))
   }
-  data.frame(
-    mean  = mean,
-    bias  = vapply(mean, function(m) .solve_band(spec, bias, m), numeric(1)),
-    lower = vapply(mean, function(m) .solve_band(spec, loa_t[["lower"]], m),
-                   numeric(1)),
-    upper = vapply(mean, function(m) .solve_band(spec, loa_t[["upper"]], m),
-                   numeric(1)))
+  out <- data.frame(mean = mean, bias = solve_L(bias),
+                    lower = solve_L(loa_t[["lower"]]),
+                    upper = solve_L(loa_t[["upper"]]))
+  if (ci) {
+    if (is.null(object$ci_t))
+      stop("`object` carries no confidence limits (`ci_t`); refit with loa_fit() or loa_components(nboot > 0).")
+    cl <- object$ci_t
+    out$bias_lo  <- solve_L(cl["bias", "lo"]);  out$bias_hi  <- solve_L(cl["bias", "hi"])
+    out$lower_lo <- solve_L(cl["lower", "lo"]); out$lower_hi <- solve_L(cl["lower", "hi"])
+    out$upper_lo <- solve_L(cl["upper", "lo"]); out$upper_hi <- solve_L(cl["upper", "hi"])
+  }
+  out
 }
