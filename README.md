@@ -1,22 +1,27 @@
 # flexloa
 
-**Conventional Bland–Altman limits of agreement (LOA), extended to error that grows with the magnitude of the measurement.**
+Conventional Bland-Altman limits of agreement (LOA) for measurement error that
+grows with the magnitude of the measurement.
 
-`flexloa` operationalizes the exploratory strategy used in Yoon, Yoon & Hahn
-(2019, *BMC Medical Research Methodology* 19:90): instead of assuming constant
-Bland–Altman limits, it computes the conventional limits under several candidate
-variance-stabilizing transformations (identity, √, ∛, general n-th root, log),
-back-transforms each set of limits into a **curved LOA band on the
-original scale**, and reports the **goodness-of-fit evidence needed to choose
-between them**:
+`flexloa` implements the transformation approach of Yoon, Yoon and Hahn (2019,
+*BMC Medical Research Methodology* 19:90). Instead of assuming constant
+Bland-Altman limits, it computes the conventional limits under several
+candidate variance-stabilizing transformations (identity, square root, cube
+root, general n-th root, log), back-transforms each set of limits into a curved
+LOA band on the original scale, and reports the classical diagnostics needed to
+choose between them:
 
 | Criterion | What it tells you |
 |---|---|
-| Shapiro–Wilk p (transformed differences) | Normality of errors on the chosen scale |
-| Heteroscedasticity ρ, p (Spearman, \|d − bias\| vs mean; Bland & Altman 1999) | Whether the transformation removed the error's size-dependence |
-| Proportional-bias slope, p (regression of d on mean) | Whether bias changes with the measurement scale |
-| Confidence intervals for the limits (`ci_t`, `loa_band(ci = TRUE)`) | Bland–Altman approximate intervals for independent pairs, or cluster-bootstrap intervals (`nboot`) for pairs that share units; the interval end points are back-transformed into pointwise confidence bands around the curved limits, so that interchangeability can be judged by the outer edge of the band rather than by the point estimate |
-| Empirical coverage, overall and by thirds of the pair means | % of observed differences inside the back-transformed band (target ≈ level). Overall coverage is ≈ level for any transformation fitted to the same data; the coverage in the lower / middle / upper third of the measurement range shows whether the band is too wide at one end and too narrow at the other |
+| Shapiro-Wilk p (transformed differences) | Normality of the errors on the chosen scale |
+| Heteroscedasticity rho, p (Spearman, \|d - bias\| vs mean; Bland and Altman 1999) | Whether the transformation removed the size-dependence of the error |
+| Proportional-bias slope, p (regression of d on mean) | Whether the bias changes across the measurement range |
+| Empirical coverage, overall and by thirds of the pair means | Proportion of observed differences inside the back-transformed band. The overall coverage is close to the nominal level for any transformation fitted to the same data; the coverage in the lower, middle and upper third shows whether the band is too wide at one end and too narrow at the other |
+
+Confidence intervals for the limits are provided by the Bland-Altman
+approximation for independent pairs or by a cluster bootstrap (`nboot`) for
+pairs that share units (`ci_t`), and `loa_band(ci = TRUE)` back-transforms the
+interval end points into pointwise confidence bands around the curved limits.
 
 ## Worked example
 
@@ -107,5 +112,5 @@ of being assumed. The vignette (`vignette("recist-example")`) works through an e
 ## References
 
 * Yoon JH, Yoon SH, Hahn S. BMC Med Res Methodol. 2019;19:90.
-* Bland JM, Altman DG. Lancet. 1986;327:307–10.
-* Euser AM, Dekker FW, le Cessie S. J Clin Epidemiol. 2008;61:978–82.
+* Bland JM, Altman DG. Lancet. 1986;327:307-10.
+* Euser AM, Dekker FW, le Cessie S. J Clin Epidemiol. 2008;61:978-82.
