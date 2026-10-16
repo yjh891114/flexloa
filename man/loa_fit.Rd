@@ -63,7 +63,7 @@ between candidate transformations:
   \item \strong{Heteroscedasticity (size-dependency) test}: the
     Spearman rank correlation between the absolute centred differences
     and the pair means, as recommended by Bland and Altman (1999); a
-    well-chosen variance-stabilising transformation should render this
+    well-chosen variance-stabilizing transformation should render this
     correlation negligible and non-significant.
   \item \strong{Proportional-bias test}: the ordinary least-squares
     regression of the transformed differences on the pair means
