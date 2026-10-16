@@ -1,6 +1,6 @@
 Package: flexloa
 Type: Package
-Title: Magnitude-Dependent Limits of Agreement via Variance-Stabilising
+Title: Magnitude-Dependent Limits of Agreement via Variance-Stabilizing
     Transformations
 Version: 0.1.0
 Authors@R: c(

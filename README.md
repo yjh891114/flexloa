@@ -76,6 +76,23 @@ loa_band(vc$inter, mean = 50)    # between-reader limits, single readings
 loa_band(vc$inter_mean, mean = 50)  # between-reader limits, session-averaged readings
 ```
 
+## When should I use magnitude-dependent limits?
+
+Constant limits are the identity member of the family, so the question is
+whether the data call for more. Four signals: (1) the Bland-Altman plot
+fans out; (2) the heteroscedasticity correlation `hetero_rho` is clearly
+non-zero (judge its size, not its p-value; about 0.2 or more usually goes
+with a visible fan); (3) the coverage by thirds of the pair means is
+unbalanced (`cov_low` near 1.00 and `cov_high` below 0.90 while the overall
+coverage is 0.95 means the two errors cancel); (4) the clinical criterion is
+a percentage (RECIST, ISO 15197 above 100 mg/dL), in which case the
+comparison has to be made at each magnitude anyway. Judge the clinical
+relevance from the limits themselves: compare the fitted band at the lower
+and upper ends of your data with the acceptable difference. The check is
+inexpensive: `loa_compare()` fits all candidates in one call, and when the
+identity scale ranks first, constant limits are confirmed by the data instead
+of being assumed. The vignette (`vignette("recist-example")`) works through an example.
+
 ## Notes
 
 * Man pages are written as roxygen2 comments; run `devtools::document()` to
