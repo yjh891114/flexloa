@@ -85,32 +85,12 @@ Limits of agreement are used to decide whether an observed difference is
 more than measurement error. Under RECIST 1.1, progression is declared
 when the sum of the diameters of the target lesions increases by at least
 20% and by at least 5 mm, and partial response when the sum decreases by
-at least 30%. We take the simplest case, a single target lesion, so that
-the sum is the diameter of that lesion. Consider four lesions re-read by
-another radiologist. For an increase the upper limit applies, for a
-decrease the lower limit (the constant limits are -6.7 to 8.3 mm because
-the pairs carry a small bias of 0.8 mm; the variance-component limits used
-later are symmetric):
-
-```{r cases-const}
-cases <- data.frame(case = c("A", "B", "C", "D"),
-                    baseline = c(12, 30, 100, 16), followup = c(20, 37, 114, 10))
-cases$change_mm  <- cases$followup - cases$baseline
-cases$change_pct <- round(100 * cases$change_mm / cases$baseline)
-m_case <- (cases$baseline + cases$followup) / 2
-b_const <- loa_band(f_id, mean = m_case)
-cases$const_limit <- round(ifelse(cases$change_mm > 0, b_const$upper, -b_const$lower), 1)
-cases$verdict_constant <- ifelse(abs(cases$change_mm) > cases$const_limit, "real change", "within error")
-cases
-```
-
-With constant limits, lesion A (12 mm read as 20 mm, a 67% increase and
-therefore progression by RECIST) is dismissed as reader disagreement,
-while lesion C (100 mm read as 114 mm, a 14% increase, below the
-progression threshold) is called a real change. Lesion D (16 mm read as
-10 mm, a 38% decrease and therefore a partial response) is dismissed as
-reader disagreement as well. These verdicts are wrong, and they are wrong
-in opposite directions at the two ends of the size range.
+at least 30%. A constant limit of about 8 mm applies the same yardstick to
+a 12 mm lesion and to a 100 mm lesion. It is generous for the first, where
+8 mm is two thirds of the diameter, and strict for the second, where two
+readers differ by 15 mm and more. Section 5 returns to this with four
+re-read lesions, once the limits have been estimated on the scale that
+fits the data.
 
 ## 3. The remedy: choose the scale on evidence
 
@@ -145,13 +125,26 @@ The pairs above are exploratory: pairs formed from the same lesion are
 correlated. The definitive estimates come from the hierarchical model
 fitted on the chosen scale by `loa_components()`, which separates reader,
 lesion-by-reader and residual variance and reports intra- and inter-reader
-limits. As in the original study, 5% of observations with the largest
-standardized residuals are trimmed.
+limits.
 
 ```{r components}
 vc <- loa_components(recist_readings$diameter, recist_readings$lesion,
-                     recist_readings$reader, transform = "sqrt", trim = 0.05)
+                     recist_readings$reader, transform = "sqrt")
 vc
+```
+
+The same model fitted on the original scale gives the constant
+counterpart of these limits. It is the fair comparator for what follows,
+because it comes from the same model and the same readings and, like the
+curved limits, is symmetric about zero. (The limits of the pairs in
+section 2, -6.7 to 8.3 mm, carry a mean difference of 0.8 mm that reflects
+the order in which the readers are paired.)
+
+```{r components-identity}
+vc_id <- loa_components(recist_readings$diameter, recist_readings$lesion,
+                        recist_readings$reader, transform = "identity")
+L_const <- vc_id$inter$loa_t[["upper"]]
+round(L_const, 1)
 ```
 
 `loa_band()` evaluates the curved limits at any lesion sizes of interest:
@@ -161,13 +154,44 @@ sizes <- c(10, 20, 30, 60, 100, 150)
 data.frame(size_mm = sizes,
            intra_95 = round(loa_band(vc$intra, mean = sizes)$upper, 1),
            inter_95 = round(loa_band(vc$inter, mean = sizes)$upper, 1),
-           constant_inter = round(loa_band(f_id, mean = sizes)$upper, 1))
+           constant_inter = round(L_const, 1))
 ```
 
-A second reader may plausibly differ by about 4-5 mm on a 10-mm lesion
-and by about 14-15 mm on a 100-mm lesion. The constant limit of 8 mm
+A second reader may plausibly differ by about 4.6 mm on a 10 mm lesion
+and by about 15 mm on a 100 mm lesion. The constant limit of 7.6 mm
 overstates the error at the small end and understates it at the large
 end.
+
+### Trimming outlying readings
+
+Real reader data can contain gross errors, for example a reading of a
+different lesion or a boundary misjudged because of adjacent non-malignant
+tissue. The `trim` argument guards the estimates against such readings:
+the model is fitted to all observations, the given fraction with the
+largest absolute standardized residuals is removed, and the model is
+fitted again to the rest. The original study trimmed 5% in this way after
+the outlying readings had been reviewed.
+
+```{r trim}
+vc_t <- loa_components(recist_readings$diameter, recist_readings$lesion,
+                       recist_readings$reader, transform = "sqrt", trim = 0.05)
+vc_t$n_trimmed
+round(rbind(all_readings = c(residual_variance = vc$varcomp[["residual"]],
+                             intra_at_30mm = loa_band(vc$intra, mean = 30)$upper,
+                             inter_at_30mm = loa_band(vc$inter, mean = 30)$upper),
+            trimmed_5pct = c(vc_t$varcomp[["residual"]],
+                             loa_band(vc_t$intra, mean = 30)$upper,
+                             loa_band(vc_t$inter, mean = 30)$upper)), 4)
+```
+
+Trimming removes the largest residuals whether or not they are errors, so
+it narrows the limits when the data are clean, as these simulated data
+are. The intra-reader limits shrink by about 16% and then cover fewer of
+the intra-reader differences than the nominal 95%, while the inter-reader
+limits, which depend mainly on the lesion-by-reader component, change by
+about 2%. For that reason all observations are used by default
+(`trim = 0`). Trim when outlying readings have been identified as errors,
+and report the fraction removed.
 
 ### How precise are the limits?
 
@@ -176,7 +200,7 @@ approximate confidence intervals of Bland and Altman (standard error of a
 limit about 1.71 s/sqrt(n), t distribution), in `f$ci_t`. The inter-reader
 pairs above share lesions, so that approximation overstates the precision;
 `nboot > 0` replaces it by a cluster bootstrap that resamples lesions.
-Compare the two for the constant limits:
+Compare the two for the constant limits of the pairs:
 
 ```{r ci-pairs}
 f_id$ci_t                                   # Bland-Altman approximation
@@ -196,7 +220,7 @@ gives a pointwise confidence band around each curved limit, and
 ```{r components-boot, cache = FALSE}
 vcb <- loa_components(recist_readings$diameter, recist_readings$lesion,
                       recist_readings$reader, transform = "sqrt",
-                      trim = 0.05, nboot = 100, seed = 1)
+                      nboot = 100, seed = 1)
 vcb$varcomp_ci
 round(loa_band(vcb$inter, mean = c(10, 30, 100), ci = TRUE), 2)
 ```
@@ -208,39 +232,59 @@ plot(f_sqb, ci = TRUE, xlab = "Mean of two readers (mm)",
 ```
 
 What the interval adds is a statement of how sure the data allow us to be.
-The inter-reader limit at 100 mm is about 14.4 mm with a 95% band of
-roughly 13.8 to 14.9 mm: if the clinically acceptable difference at that
-size is 15 mm, the whole band lies inside it and interchangeability is
+The inter-reader limit at 100 mm is about 14.7 mm with a 95% band of
+roughly 14.1 to 15.2 mm: if the clinically acceptable difference at that
+size is 16 mm, the whole band lies inside it and interchangeability is
 supported by the data rather than by the point estimate alone; if the
-acceptable difference is 14 mm, the point estimate exceeds it and the band
-confirms that the excess is real. One caveat: the bootstrap resamples
+acceptable difference is 14 mm, the whole band lies above it and the
+excess is more than sampling error. One caveat: the bootstrap resamples
 lesions, so it reflects the sampling of lesions but treats the six readers
 as fixed; the reader variance is estimated from these six readers only,
 and a study with few readers should say so.
 
 ## 5. What changes in the decisions
 
-Re-assess the four lesions with the curved inter-reader limits:
+Consider four lesions re-read by another radiologist. We take the simplest
+case, a single target lesion, so that the RECIST sum of diameters is the
+diameter of that lesion, and compare each change with the constant and
+with the curved inter-reader limit at the mean of the two readings. Both
+limits are symmetric about zero, so the same limit applies to an increase
+and to a decrease.
 
-```{r cases-curved}
-cases$curved_limit <- round(loa_band(vc$inter, mean = m_case)$upper, 1)   # symmetric limits
-cases$verdict_curved <- ifelse(abs(cases$change_mm) > cases$curved_limit, "real change", "within error")
+```{r cases}
+cases <- data.frame(case = c("A", "B", "C", "D"),
+                    baseline = c(12, 24, 100, 16), followup = c(19, 30, 114, 10))
+cases$change_mm  <- cases$followup - cases$baseline
+cases$change_pct <- round(100 * cases$change_mm / cases$baseline)
 cases$RECIST <- ifelse(cases$change_pct >= 20 & cases$change_mm >= 5, "PD",
                        ifelse(cases$change_pct <= -30, "PR", "SD"))
-cases[, c("case", "baseline", "followup", "change_mm", "change_pct", "RECIST",
-          "const_limit", "verdict_constant", "curved_limit", "verdict_curved")]
+m_case <- (cases$baseline + cases$followup) / 2
+curved <- loa_band(vc$inter, mean = m_case)$upper
+cases$constant_limit    <- round(L_const, 1)
+cases$decision_constant <- ifelse(abs(cases$change_mm) > L_const, "exceeds limit", "within limit")
+cases$curved_limit      <- round(curved, 1)
+cases$decision_curved   <- ifelse(abs(cases$change_mm) > curved, "exceeds limit", "within limit")
+cases
 ```
 
-Lesion A is now recognized as a real change and lesion C as reader
-disagreement. Lesion B, near the size where the curved band crosses the
-constant limit, is judged the same way by both. Lesion D, the partial
-response in a small lesion, is recognized as a real change: at that size
-the curved limit is narrower than the constant one. The confidence bands
-show that these verdicts do not hinge on sampling error: the change of
-lesion A (8 mm) exceeds even the upper confidence limit of the curved
-limit at its size, the change of lesion C (14 mm) lies below its lower
-confidence limit, and the change of lesion D (6 mm) exceeds the upper
-confidence limit at its size.
+Lesion A (12 mm read as 19 mm, a 58% increase and therefore progression
+by RECIST) lies within the constant limit and would be put down to reader
+disagreement, although it exceeds the curved limit at its size. Lesion C
+(100 mm read as 114 mm, a 14% increase, below the progression threshold)
+exceeds the constant limit, although two readers differ by that much at
+100 mm. Lesion B, at the size where the curved band crosses the constant
+limit, is judged the same way by both. Lesion D (16 mm read as 10 mm, a
+38% decrease and therefore a partial response) lies within the constant
+limit but exceeds the curved limit, which is the narrower of the two at
+that size. A change that exceeds the inter-reader limit is larger than
+reader disagreement on the same examination explains; whether the tumor
+itself has changed also depends on the variability between examinations
+(see the note at the end of this section). The confidence bands show that
+these judgments do not hinge on sampling error: the change of lesion A
+(7 mm) exceeds even the upper confidence limit of the curved limit at its
+size, the change of lesion C (14 mm) lies below its lower confidence
+limit, and the change of lesion D (6 mm) exceeds the upper confidence
+limit at its size.
 
 ```{r cases-ci}
 round(loa_band(vcb$inter, mean = m_case, ci = TRUE)[, c("mean", "upper", "upper_lo", "upper_hi")], 2)
@@ -261,15 +305,14 @@ L_sqrt <- vc$inter$loa_t[["upper"]]
 f_t <- vc$inter$spec$f; finv_t <- vc$inter$spec$finv
 curved_inc <- finv_t(f_t(grid) + L_sqrt) - grid     # largest increase within the band
 curved_dec <- grid - finv_t(f_t(grid) - L_sqrt)     # largest decrease within the band
-const_up <- loa_band(f_id, mean = grid)$upper
-const_lo <- -loa_band(f_id, mean = grid)$lower
+const_lim <- rep(L_const, length(grid))             # constant limit, the same in both directions
 pd <- pmax(0.20 * grid, 5)                          # RECIST PD: >= 20% and >= 5 mm
 pr <- 0.30 * grid                                   # RECIST PR: >= 30% decrease
 plot(grid, curved_inc, type = "n", ylim = c(-50, 40),
      xlab = "Baseline lesion diameter (mm)", ylab = "Change at re-reading (mm)")
 abline(h = 0, col = "grey75")
 lines(grid, curved_inc, lwd = 2, col = "firebrick"); lines(grid, -curved_dec, lwd = 2, col = "firebrick")
-lines(grid, const_up, lwd = 2, lty = 3, col = "grey30"); lines(grid, -const_lo, lwd = 2, lty = 3, col = "grey30")
+lines(grid, const_lim, lwd = 2, lty = 3, col = "grey30"); lines(grid, -const_lim, lwd = 2, lty = 3, col = "grey30")
 lines(grid, pd, lwd = 2, lty = 2, col = "steelblue")
 lines(grid, -pr, lwd = 2, lty = 2, col = "darkorange3")
 points(cases$baseline, cases$change_mm, pch = 21, bg = "gold", cex = 1.3)
@@ -280,37 +323,37 @@ legend("topleft", bty = "n", lwd = 2, lty = c(1, 3, 2, 2),
                   "Inter-reader 95% LOA, constant",
                   "RECIST progression (+20% and +5 mm)",
                   "RECIST partial response (-30%)"))
-c(PD_within_error_up_to_constant = max(grid[pd <= const_up]), PD_within_error_up_to_curved = max(grid[pd <= curved_inc]),
-  PR_within_error_up_to_constant = max(grid[pr <= const_lo]), PR_within_error_up_to_curved = max(grid[pr <= curved_dec]))
+c(PD_within_error_up_to_constant = max(grid[pd <= const_lim]), PD_within_error_up_to_curved = max(grid[pd <= curved_inc]),
+  PR_within_error_up_to_constant = max(grid[pr <= const_lim]), PR_within_error_up_to_curved = max(grid[pr <= curved_dec]))
 ```
 
-Under constant limits an increase that qualifies as progression is within
-reader error for lesions up to about 40 mm; under the curved limits, up to
-about 55 mm. The 5 mm condition changes nothing here, because the curved
-limit already exceeds 5 mm for every measurable lesion. For the response
-criterion the picture is reversed: a 30% decrease is within reader error
-up to about 22 mm under the constant limits but only up to about 19 mm
-under the curved limits, which are the narrower of the two at small sizes.
-Constant limits thus let reader disagreement pass as progression in large
-lesions and dismiss real responses in small ones. The two bands also give
-different answers to the interchangeability question. If the acceptable
-difference between readers is set at 15% of the measurement, the curved
-band lies within that tolerance only for lesions of about 100 mm and
-above, whereas the constant limit would certify interchangeability from
-about 55 mm upwards, over a range where the true error exceeds the
-tolerance.
+Under the constant limit an increase that qualifies as progression is
+within reader error for lesions up to about 38 mm; under the curved
+limits, up to about 59 mm. The 5 mm condition changes nothing here,
+because the curved limit already exceeds 5 mm for every measurable lesion.
+For the response criterion the picture is reversed: a 30% decrease is
+within reader error up to about 25 mm under the constant limit but only up
+to about 20 mm under the curved limits, which are the narrower of the two
+at small sizes. Constant limits thus misjudge whether a change that
+qualifies under RECIST exceeds inter-reader variability, most of all at
+the two ends of the size range. The two bands also give different answers
+to the interchangeability question. If the acceptable difference between
+readers is set at 15% of the measurement, the curved band lies within that
+tolerance only for lesions of about 100 mm and above, whereas the constant
+limit would certify interchangeability from about 50 mm upwards, over a
+range where the true error exceeds the tolerance.
 
 ```{r tolerance}
 tol <- 0.15 * grid
-c(curved_ok_from = min(grid[curved_inc <= tol]), constant_ok_from = min(grid[const_up <= tol]))
+c(curved_ok_from = min(grid[curved_inc <= tol]), constant_ok_from = min(grid[const_lim <= tol]))
 ```
 
 A word on what these numbers describe. They concern a single target
 lesion re-read on the same examination. With several target lesions the
 error of the sum has to be propagated from the lesion-level model (by
 simulation), and measurements on separate examinations add the
-variability of the scans themselves, so the thresholds above are lower
-bounds for longitudinal use.
+variability of the scans themselves, so the sizes above may underestimate
+those relevant to longitudinal assessment.
 
 ## 6. When should I use magnitude-dependent limits?
 
@@ -339,12 +382,13 @@ order of formality.
 How much heteroscedasticity matters clinically is a question about the
 limits, not about a test statistic. Compare the fitted band at the lower
 and upper ends of your data with the acceptable difference. In this
-example the inter-reader limit grows from about 4.5 mm at 10 mm to about
-14 mm at 100 mm, and a constant limit of 8 mm is wrong by almost a factor
-of two at both ends; a band that widened by a tenth over the range would
-make no practical difference. The check is inexpensive: `loa_compare()`
-fits all candidates in one call, and when the identity scale ranks first,
-constant limits are confirmed by the data instead of being assumed.
+example the inter-reader limit grows from about 4.6 mm at 10 mm to about
+15 mm at 100 mm, and a constant limit of 7.6 mm is wrong by a factor of
+1.7 to 1.9 at the two ends; a band that widened by a tenth over the range
+would make no practical difference. The check is inexpensive:
+`loa_compare()` fits all candidates in one call, and when the identity
+scale ranks first, constant limits are confirmed by the data instead of
+being assumed.
 
 ## 7. Summary
 
