@@ -41,6 +41,12 @@
 #' @param trim Fraction (0 to 0.5) of observations with the largest
 #'   absolute standardized residuals from an initial fit to remove before
 #'   the final fit; \code{0} (default) fits all observations once.
+#'   Trimming guards the estimates against outlying readings (gross
+#'   errors such as a reading of a different unit). It removes the largest
+#'   residuals whether or not they are erroneous, so it narrows the limits
+#'   when the data are free of such readings: removing 5 percent of
+#'   normally distributed residuals lowers their standard deviation by
+#'   about 13 percent.
 #' @param nboot Number of cluster-bootstrap resamples used for confidence
 #'   intervals of the variance components and of the intra- and
 #'   inter-reader limits; \code{0} (default) gives point estimates only.
