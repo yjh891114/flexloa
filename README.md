@@ -109,6 +109,14 @@ of being assumed. The vignette (`vignette("recist-example")`) works through an e
 * `loa_band()` returns `NA` where a limit is not attainable within the domain
   of the transformation (e.g. very small means under a root transform).
 
+## Acknowledgements
+
+A large language model (Claude by Anthropic) was used to assist with the
+development and debugging of the code and with the language editing of the
+accompanying manuscript. All AI-assisted outputs were reviewed, tested and
+revised by the authors, who take full responsibility for the content of the
+article and the software.
+
 ## References
 
 * Yoon JH, Yoon SH, Hahn S. BMC Med Res Methodol. 2019;19:90.
